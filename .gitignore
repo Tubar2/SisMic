@@ -4,7 +4,11 @@
 .launches
 .project
 .settings
+.jxbrowser-data
+.metadata
 
+RemoteSystemsTempFiles
+dvt
 Debug
 targetConfigs
 
