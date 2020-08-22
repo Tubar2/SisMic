@@ -38,11 +38,9 @@ fib32:
 		clr 	r7
 loop:
 		add 	r4, r5
-		;adc 	r6
 		jc 		p2r4
 
 		add 	r5,r4
-		;adc 	r6
 		jc 	 	p2r5
 		jmp 	loop
 p2r4:
