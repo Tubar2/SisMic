@@ -13,3 +13,5 @@ Debug
 targetConfigs
 
 *.cmd
+
+P1/*
