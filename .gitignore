@@ -14,4 +14,4 @@ targetConfigs
 
 *.cmd
 
-P1/*
+/P1
