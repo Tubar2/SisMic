@@ -1,3 +1,10 @@
+/*
+ * gpio.c
+ *
+ *  Created on: Sep 20, 2020
+ *      Author: ricardosantos
+ */
+
 
 #include "gpio.h"
 
@@ -69,12 +76,25 @@ uint8_t* getPin(uint8_t port, enum pinTypes type){
     uint8_t * pin =
                 (uint8_t *) (
                         0x0200                      // base
-                        + ((port-1)/2) * 0x20       // base off-et
-                        + ((port-1)%2) * 0x01       // type off-set
-                        + type                      // type base
+                        + ((port-1)/2) * 0x20       // base off-set
+                        + ((port-1)%2) * 0x01       // IN off-set
+                        + type
                 );
 
     return pin;
+}
+
+void configInterruptible(uint8_t port, uint8_t bit, enum edgeSelect edge) {
+    uint8_t mask = 1 << bit;
+
+    uint8_t * pinIE = getPin(port, ie);
+    uint8_t * pinIES = getPin(port, ies);
+
+    // Habilita a porta como possível geardora de interrupções
+    setAsIE(mask, pinIE);
+
+    // Configura sob qual transição de sinal será acionada a interrupção
+    setAsIES(mask, pinIES, edge);
 }
 
 /* Funções Auxiliares */
@@ -82,7 +102,7 @@ uint8_t* getPin(uint8_t port, enum pinTypes type){
 void setAsInput(uint8_t mask, uint8_t * pinDir, uint8_t * pinRen, uint8_t * pinOut)
 {
     *pinOut &= ~mask;// Clear Px. Out
-    *pinDir &= ~mask; // Clear Px. Dir
+    *pinDir &= ~mask;// Clear Px. Dir
     *pinRen &= ~mask;// Clear Px. Ren
 }
 
@@ -105,3 +125,16 @@ void setAsInPDwn(uint8_t mask, uint8_t * pinDir, uint8_t * pinRen, uint8_t * pin
     *pinRen |= mask;  // Set Px. Ren
     *pinOut &= ~mask; // Clear Px. Out
 }
+
+void setAsIE(uint8_t mask, uint8_t * pinIE){
+    *pinIE |= mask;   // Set Px. IE
+}
+void setAsIES(uint8_t mask, uint8_t * pinIES, uint8_t edge){
+    if (edge) {
+        *pinIES |= mask;  // Set Px.IES (High to low)
+    } else {
+        *pinIES &= ~mask; // Clear Px.IES (Low to high)
+    }
+}
+
+
