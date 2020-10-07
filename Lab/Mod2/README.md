@@ -6,6 +6,8 @@ project
 └──libs
     │──gpio.h
     │──gpio.c
+    │──timer.h
+    │──timer.c
 ```
 ## libs folder
 Files stored on supposed lib folder are on current github level for organization purposes
