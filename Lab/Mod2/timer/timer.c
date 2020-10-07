@@ -11,100 +11,127 @@
 
 void wait(uint16_t time, timeUnit_t unit, timerPin timer)
 {
+    const uint8_t regN = 0;     // Define qual o CCRn
 
-    const uint8_t regN = 0;
+    // Endereço do registrador CTL do timer escolhido (TxCTL)
+    uint16_t * timerCTL = getTimerRegstr(timer, CTL, 0);
+    
+    // Endereço do registrador CCR do timer e n escolhidos (TxCCRn)
+    uint16_t * timerCCR = getTimerRegstr(timer, CCR, regN);
 
     switch (unit){
 
     case us:
-        // Configura o timer (TA0 ou TA1 ou ...) com SMCLK e MC_UP
-        configTimer(timer, SMCLK, UP);
+        // Configura o timer escolhido (TA0, TA1 ou ...) com SMCLK, MC_UP e InputDiv = 0
+        configTimer(timerCTL, SMCLK, UP, 0);
 
-        // Adiciona uma interrução em no timer no tempo especificado
-        setInterruptionAt(timer, regN, time);
+        // Adiciona uma interrução no TxCCRn escolhido no tempo determinado
+        setInterruptionAt(timerCCR, time);
 
-        // Aguarda a interrupção ser tratada
+        // Aguarda a interrupção acontecer
         await(timer, regN);
 
-        // Para o timer
-        stopTimer(timer);
+        // Para e reinicia o timer
+        stopTimer(timerCTL);
         break;
 
     case ms:
-        configTimer(timer, ACLK, UP);
+    {
+        // Divide o clock de (32MHz por 8) =~ 4 ms
+        uint16_t * timerEX0 = getTimerRegstr(timer, EX0, 0);
+        setupTimerRegister(timerEX0, 7, none);
 
-        time = (time*100) / 3;
+        // Configura o timer com ACLK, MC_UP e InputDivider = 4
+        configTimer(timerCTL, ACLK, UP, 3);
 
-        setInterruptionAt(timer, regN, time);
+        // Adiciona uma interrução no TxCCRn escolhido no tempo determinado
+        setInterruptionAt(timerCCR, time);
 
+        // Aguarda a interrupção acontecer
         await(timer, regN);
 
-        stopTimer(timer);
+        // Para e reinicia o timer
+        stopTimer(timerCTL);
+    }
         break;
 
     case sec:
     {
-        configTimer(timer, ACLK, UP);
+        // Configura o timer escolhido com ACLK, MC_UP e inputDivider = 0
+        configTimer(timerCTL, ACLK, UP, 0);
 
-        uint16_t timer_sec = 0;
-        const uint16_t oneSec = 0x8000 - 1;
+        // Define variáveis auxiliares
+        uint16_t timer_sec = 0;             // Batidas de 1 segundo
+        const uint16_t oneSec = 0x8000 - 1; // Um segundo com o clock ACLK
 
-        setInterruptionAt(timer, regN, oneSec);
+        // Adiciona uma interrupção em 1 segundo
+        setInterruptionAt(timerCCR, oneSec);
 
+        // Loop que roda time segundos
         while(timer_sec != time) {
 
+            // Aguarda um segundo
             await(timer, regN);
 
+            // Toda vez que passa um segundo, incrementa o timer de segundos
             timer_sec++;
         }
 
-        stopTimer(timer);
+        stopTimer(timerCTL);
     }
         break;
     }
 
 }
 
-void configTimer(timerPin timer, timerClock clk, timerMode mode){
-    uint16_t * timerCTL = getTimerPort(timer, CTL, 0);
+void configTimer(uint16_t * timerCTL, timerClock clk, timerMode mode, uint8_t div){
 
-    setupCTL(timerCTL,  clk, SEL);
-    setupCTL(timerCTL, mode, MC);
-    setupCTL(timerCTL, 1, CLR);
+    // Configura o clock
+    setupTimerRegister(timerCTL,  clk, SEL);
+    // Configura o modo de contagem
+    setupTimerRegister(timerCTL, mode, MC);
+    // Configra o divisor de batidas clock
+    setupTimerRegister(timerCTL, div, ID);
+    // Inicia o clock com 0
+    setupTimerRegister(timerCTL, 1, CLR);
 }
 
-uint16_t * getTimerPort(timerPin base, timerRegister reg, uint8_t offset){
-    uint16_t* pin =
+uint16_t * getTimerRegstr(timerPin base, timerRegister reg, uint8_t offset){
+    
+    // Forma o endereço do registrador de 16 bits escolhido a partir da
+    uint16_t* regstr =
             (uint16_t *) (
-                    base    +
-                    reg     +
-                    (2*offset)
+                    base    +       // base do timer    eg. TA0 +
+                    reg     +       // registrador      eg. SEL +
+                    (2*offset)      // offset para os registrador CCTLn/CCRn
             );
 
-    return pin;
+    return regstr;
 }
 
-void setupCTL(uint16_t * timerCTL, uint8_t bit, timerPort port){
+void setupTimerRegister(uint16_t * timerReg, uint8_t bit, timerPort port){
+    // Máscara dos bits do registrador que serão setados
     uint16_t mask = bit << port;
-    *timerCTL |= mask;
+    *timerReg |= mask;
 }
 
-void setInterruptionAt(timerPin timer, uint8_t ccr_N, uint16_t time){
-    uint16_t * timerCCR = getTimerPort(timer, CCR, ccr_N);
-
+void setInterruptionAt(uint16_t * timerCCR, uint16_t time){
+    // Configura CCRn com o tempo especificado, demarcando uma interrupção
     *timerCCR = time - 1;
 }
 
 void await(timerPin timer, uint8_t cctl_N) {
-    uint16_t * timerCCTL = getTimerPort(timer, CCTL, cctl_N);
+    // Pega o endereço da porta CCTL do timer
+    uint16_t * timerCCTL = getTimerRegstr(timer, CCTL, cctl_N);
 
+    // Enquanto a flag de interrupção não for setada, trava o programa
     while(!(*timerCCTL & CCIFG));
+    
+    // Limpa a flag para que novas interrupções possam acontecer
     *timerCCTL &= ~CCIFG;
 
 }
 
-void stopTimer(timerPin timer){
-    uint16_t * timerCTL = getTimerPort(timer, CTL, 0);
-
+void stopTimer(uint16_t * timerCTL){
     *timerCTL = MC__STOP;
 }
