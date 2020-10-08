@@ -26,28 +26,44 @@ int main(void)
 	configTimer(timerCTL, ACLK, Continuous, 0);
 
 	// 3. Adiciona interrupções em
-	uint16_t oneHz = 0x4000;        // 1 Hz
-	uint16_t twoHz = 0x2000;        // 2 Hz
+	const uint16_t oneHz = 0x4000;        // 1 Hz -> CCR1
+	const uint16_t twoHz = 0x2000;        // 2 Hz -> CCR2
 
 	setInterruptionAt(timerCCR1, oneHz);
 	setInterruptionAt(timerCCR2, twoHz);
 
-	uint16_t * timerCCTL1 = getTimerRegstr(TA_0, CCTL, 1);
-	uint16_t * timerCCTL2 = getTimerRegstr(TA_0, CCTL, 2);
-	// 4. Loop que checa pelas flags de interrupção dos comparadores
+	// 4. Habilitando interrupçoes nos registradores CCTL 1 e 2
+	// setando os bits IE (bit4)
+    uint16_t * timerCCTL1 = getTimerRegstr(TA_0, CCTL, 1);
+    uint16_t * timerCCTL2 = getTimerRegstr(TA_0, CCTL, 2);
+	setupTimerRegister(timerCCTL1, 1, 4);
+	setupTimerRegister(timerCCTL2, 1, 4);
+
+	// 5. Habilitando interrupções na CPU
+	__enable_interrupt();
+
+	// 6. Loop infinito
 	while(1){
-
-	    if(*timerCCTL2 & CCIFG){
-	        P4OUT ^= BIT7;
-	        *timerCCTL2 &= ~CCIFG;
-	    }
-	    if (*timerCCTL1 & CCIFG){
-	        P1OUT ^= BIT0;
-	        P4OUT ^= BIT7;
-	        *timerCCTL1 &= ~CCIFG;
-	        *timerCTL |= TACLR;
-	    }
-
+	    // Interrupçoões são geradas e as interrupções são chamadas sem a
+	    // necessidade de chamá-la
 	}
-
 }
+
+// Interrupços nos ccrs 0 a 5
+#pragma vector = TIMER0_A1_VECTOR
+__interrupt void TA0_CCRN_ISR(){
+    switch(TA0IV){
+    case 0x02:                      // CCR1
+        P1OUT ^= BIT0;
+        P4OUT ^= BIT7;
+        TA0CTL |= TACLR;
+        break;
+    case 0x04:                      // CCR2
+        P4OUT ^= BIT7;
+        break;
+    default:
+        break;
+    }
+}
+
+
